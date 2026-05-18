@@ -1,0 +1,46 @@
+{
+  "entities": {
+    "Customer": {
+      "title": "Customer",
+      "description": "A customer of the sneaker washing business",
+      "type": "object",
+      "properties": {
+        "name": { "type": "string" },
+        "phone": { "type": "string" },
+        "lastContactDate": { "type": "number", "description": "Timestamp in milliseconds" },
+        "price": { "type": "number", "description": "Price in numeric format" },
+        "isWashing": { "type": "boolean" },
+        "isLoyal": { "type": "boolean" },
+        "createdAt": { "type": "number" },
+        "updatedAt": { "type": "number" }
+      },
+      "required": ["name", "lastContactDate", "price", "isWashing", "isLoyal", "createdAt", "updatedAt"]
+    },
+    "Task": {
+      "title": "Task",
+      "description": "A to-do item for the business",
+      "type": "object",
+      "properties": {
+        "title": { "type": "string" },
+        "isCompleted": { "type": "boolean" },
+        "createdAt": { "type": "number" },
+        "updatedAt": { "type": "number" }
+      },
+      "required": ["title", "isCompleted", "createdAt", "updatedAt"]
+    }
+  },
+  "firestore": {
+    "/customers/{customerId}": {
+      "schema": {
+        "$ref": "#/entities/Customer"
+      },
+      "description": "Store all customers for the business"
+    },
+    "/tasks/{taskId}": {
+      "schema": {
+        "$ref": "#/entities/Task"
+      },
+      "description": "Store all to-do tasks for the business"
+    }
+  }
+}
