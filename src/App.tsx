@@ -20,6 +20,7 @@ interface Customer {
   id: string;
   name: string;
   phone?: string;
+  instagram?: string;
   lastContactDate: number;
   price: number;
   isWashing: boolean;
@@ -159,6 +160,8 @@ function MetricsDashboard({ customers }: { customers: Customer[] }) {
 function TasksDashboard({ tasks }: { tasks: Task[] }) {
   const [newTaskTitle, setNewTaskTitle] = useState('');
   const [loadingTask, setLoadingTask] = useState(false);
+  const [taskToDelete, setTaskToDelete] = useState<string | null>(null);
+  const [isDeleting, setIsDeleting] = useState(false);
 
   // Separate tasks into incomplete and complete, sort by creation/update
   const incompleteTasks = tasks.filter(t => !t.isCompleted).sort((a, b) => b.createdAt - a.createdAt);
@@ -181,7 +184,7 @@ function TasksDashboard({ tasks }: { tasks: Task[] }) {
       setNewTaskTitle('');
     } catch (err) {
       console.error(err);
-      alert('Error al crear tarea.');
+      // Fallback in case of error
     } finally {
       setLoadingTask(false);
     }
@@ -198,18 +201,29 @@ function TasksDashboard({ tasks }: { tasks: Task[] }) {
     }
   };
 
-  const handleDeleteTask = async (id: string) => {
-    if (confirm('¿Eliminar esta tarea?')) {
-      try {
-        await deleteDoc(doc(db, 'tasks', id)).catch(err => handleFirestoreError(err, OperationType.DELETE, `tasks/${id}`));
-      } catch (err) {
-        console.error(err);
-      }
+  const confirmDeleteTask = async () => {
+    if (!taskToDelete) return;
+    setIsDeleting(true);
+    try {
+      await deleteDoc(doc(db, 'tasks', taskToDelete)).catch(err => handleFirestoreError(err, OperationType.DELETE, `tasks/${taskToDelete}`));
+    } catch (err) {
+      console.error(err);
+    } finally {
+      setIsDeleting(false);
+      setTaskToDelete(null);
     }
   };
 
   return (
     <div className="flex-1 overflow-y-auto p-4 md:p-8 flex flex-col items-center">
+      <ConfirmDialog 
+        isOpen={!!taskToDelete} 
+        title="Eliminar tarea" 
+        message="¿Estás seguro de que deseas eliminar esta tarea?" 
+        onCancel={() => setTaskToDelete(null)} 
+        onConfirm={confirmDeleteTask}
+        isLoading={isDeleting}
+      />
       <div className="w-full max-w-2xl space-y-6">
         
         {/* Header & Add Form */}
@@ -255,7 +269,7 @@ function TasksDashboard({ tasks }: { tasks: Task[] }) {
                            <Circle className="w-6 h-6" />
                          </button>
                          <p className="text-slate-800 font-medium text-sm flex-1">{task.title}</p>
-                         <button onClick={() => handleDeleteTask(task.id)} className="text-slate-300 hover:text-red-500 opacity-0 group-hover:opacity-100 transition-opacity p-2 shrink-0">
+                         <button onClick={() => setTaskToDelete(task.id)} className="text-slate-300 hover:text-red-500 opacity-0 group-hover:opacity-100 transition-opacity p-2 shrink-0">
                            <Trash2 className="w-4 h-4" />
                          </button>
                        </div>
@@ -275,7 +289,7 @@ function TasksDashboard({ tasks }: { tasks: Task[] }) {
                            <CheckCircle2 className="w-6 h-6" />
                          </button>
                          <p className="text-slate-400 font-medium text-sm flex-1 line-through">{task.title}</p>
-                         <button onClick={() => handleDeleteTask(task.id)} className="text-slate-300 hover:text-red-500 opacity-0 group-hover:opacity-100 transition-opacity p-2 shrink-0">
+                         <button onClick={() => setTaskToDelete(task.id)} className="text-slate-300 hover:text-red-500 opacity-0 group-hover:opacity-100 transition-opacity p-2 shrink-0">
                            <Trash2 className="w-4 h-4" />
                          </button>
                        </div>
@@ -285,6 +299,25 @@ function TasksDashboard({ tasks }: { tasks: Task[] }) {
                )}
              </>
           )}
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function ConfirmDialog({ isOpen, title, message, onConfirm, onCancel, confirmText = 'Eliminar', isLoading = false }: { isOpen: boolean, title: string, message: string, onConfirm: () => void, onCancel: () => void, confirmText?: string, isLoading?: boolean }) {
+  if (!isOpen) return null;
+
+  return (
+    <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-slate-900/50 backdrop-blur-sm">
+      <div className="bg-white rounded-xl shadow-xl w-full max-w-sm overflow-hidden animate-in fade-in zoom-in-95 duration-200">
+        <div className="p-6">
+          <h3 className="text-lg font-bold text-slate-900 mb-2">{title}</h3>
+          <p className="text-sm text-slate-500">{message}</p>
+        </div>
+        <div className="px-6 py-4 bg-slate-50 border-t border-slate-100 flex justify-end gap-3">
+          <Button variant="ghost" onClick={onCancel} disabled={isLoading}>Cancelar</Button>
+          <Button variant="danger" onClick={onConfirm} disabled={isLoading}>{isLoading ? '...' : confirmText}</Button>
         </div>
       </div>
     </div>
@@ -327,11 +360,14 @@ export default function App() {
   // Modal State
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [editingCustomer, setEditingCustomer] = useState<Customer | null>(null);
+  const [customerToDelete, setCustomerToDelete] = useState<string | null>(null);
+  const [isDeletingCustomer, setIsDeletingCustomer] = useState(false);
   
   // Form State
   const [formData, setFormData] = useState({
     name: '',
     phone: '',
+    instagram: '',
     price: 0,
     isWashing: true,
     isLoyal: false,
@@ -395,6 +431,7 @@ export default function App() {
       setFormData({
         name: customer.name,
         phone: customer.phone || '',
+        instagram: customer.instagram || '',
         price: customer.price,
         isWashing: customer.isWashing,
         isLoyal: customer.isLoyal,
@@ -404,6 +441,7 @@ export default function App() {
       setFormData({
         name: '',
         phone: '',
+        instagram: '',
         price: 0,
         isWashing: true,
         isLoyal: false,
@@ -421,6 +459,7 @@ export default function App() {
       const customerData = {
         name: formData.name,
         phone: formData.phone || '',
+        instagram: formData.instagram || '',
         price: Number(formData.price),
         isWashing: formData.isWashing,
         isLoyal: formData.isLoyal,
@@ -440,7 +479,6 @@ export default function App() {
       setIsModalOpen(false);
     } catch (err) {
       console.error(err);
-      alert('Error guardando cliente.');
     } finally {
       setLoadingAction(false);
     }
@@ -468,13 +506,16 @@ export default function App() {
     }
   };
 
-  const handleDelete = async (id: string) => {
-    if (confirm('¿Estás seguro de que quieres eliminar este cliente?')) {
-      try {
-        await deleteDoc(doc(db, 'customers', id)).catch(e => handleFirestoreError(e, OperationType.DELETE, `customers/${id}`));
-      } catch (err) {
-        console.error(err);
-      }
+  const confirmDeleteCustomer = async () => {
+    if (!customerToDelete) return;
+    setIsDeletingCustomer(true);
+    try {
+      await deleteDoc(doc(db, 'customers', customerToDelete)).catch(e => handleFirestoreError(e, OperationType.DELETE, `customers/${customerToDelete}`));
+    } catch (err) {
+      console.error(err);
+    } finally {
+      setIsDeletingCustomer(false);
+      setCustomerToDelete(null);
     }
   };
 
@@ -492,7 +533,9 @@ export default function App() {
   // derived lists
   const filteredCustomers = customers.filter(c => {
     const searchLower = searchQuery.toLowerCase();
-    const matchesSearch = c.name.toLowerCase().includes(searchLower) || (c.phone && c.phone.includes(searchLower));
+    const matchesSearch = c.name.toLowerCase().includes(searchLower) || 
+                          (c.phone && c.phone.includes(searchLower)) ||
+                          (c.instagram && c.instagram.toLowerCase().includes(searchLower));
     
     if (!matchesSearch) return false;
     
@@ -694,7 +737,7 @@ export default function App() {
 
             <div className="bg-white rounded-xl shadow-sm border border-slate-200 flex flex-col flex-1 min-h-[300px] overflow-hidden">
               <div className="hidden lg:grid grid-cols-6 bg-slate-50 py-3 px-6 border-b border-slate-200 text-xs font-bold text-slate-500 uppercase tracking-widest shrink-0">
-                <div className="col-span-2">Cliente / Teléfono</div>
+                <div className="col-span-2">Cliente / Contacto</div>
                 <div>Fecha Contacto</div>
                 <div>Precio</div>
                 <div className="text-center">Estado</div>
@@ -719,9 +762,21 @@ export default function App() {
                             </span>
                           )}
                         </div>
-                        <p className="text-xs text-slate-400 font-mono mt-0.5 flex items-center gap-1">
-                           <Phone className="w-3 h-3"/> {customer.phone || 'Sin número'}
-                        </p>
+                        <div className="flex flex-col gap-1 mt-1">
+                          {customer.phone && (
+                            <p className="text-xs text-slate-400 font-mono flex items-center gap-1">
+                              <Phone className="w-3 h-3"/> {customer.phone}
+                            </p>
+                          )}
+                          {customer.instagram && (
+                            <p className="text-xs text-slate-400 font-mono flex items-center gap-1">
+                              <Instagram className="w-3 h-3 text-pink-500"/> @{customer.instagram}
+                            </p>
+                          )}
+                          {!customer.phone && !customer.instagram && (
+                             <p className="text-xs text-slate-400 font-mono">Sin contacto</p>
+                          )}
+                        </div>
                       </div>
 
                       <div className="text-sm text-slate-600 flex items-center gap-2 lg:block">
@@ -768,7 +823,7 @@ export default function App() {
                           <Button variant="ghost" size="icon" className="h-8 w-8" onClick={() => openForm(customer)} title="Editar">
                             <Edit className="w-4 h-4 text-slate-400" />
                           </Button>
-                          <Button variant="ghost" size="icon" className="h-8 w-8 hover:text-red-600" onClick={() => handleDelete(customer.id)} title="Eliminar">
+                          <Button variant="ghost" size="icon" className="h-8 w-8 hover:text-red-600" onClick={() => setCustomerToDelete(customer.id)} title="Eliminar">
                             <Trash2 className="w-4 h-4 text-slate-400" />
                           </Button>
                         </div>
@@ -788,6 +843,15 @@ export default function App() {
         </div>
         )}
       </main>
+
+      <ConfirmDialog 
+        isOpen={!!customerToDelete} 
+        title="Eliminar Cliente" 
+        message="¿Estás seguro de que quieres eliminar este cliente? Esta acción no se puede deshacer." 
+        onCancel={() => setCustomerToDelete(null)} 
+        onConfirm={confirmDeleteCustomer}
+        isLoading={isDeletingCustomer}
+      />
 
       {/* Modal */}
       {isModalOpen && (
@@ -816,7 +880,7 @@ export default function App() {
                   />
                 </div>
                 
-                <div className="grid grid-cols-2 gap-5">
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-5">
                   <div>
                     <label className="block text-xs font-bold text-slate-500 uppercase tracking-wider mb-1.5">Teléfono</label>
                     <input 
@@ -826,6 +890,19 @@ export default function App() {
                       value={formData.phone}
                       onChange={e => setFormData({...formData, phone: e.target.value})}
                     />
+                  </div>
+                  <div>
+                    <label className="block text-xs font-bold text-slate-500 uppercase tracking-wider mb-1.5">Instagram</label>
+                    <div className="relative">
+                      <span className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400">@</span>
+                      <input 
+                        type="text" 
+                        className="w-full pl-8 pr-4 py-2.5 border border-slate-200 rounded-lg focus:ring-2 focus:ring-cyan-500 focus:border-transparent outline-none transition-shadow text-sm font-mono text-slate-800"
+                        placeholder="usuario"
+                        value={formData.instagram}
+                        onChange={e => setFormData({...formData, instagram: e.target.value.replace('@', '')})}
+                      />
+                    </div>
                   </div>
                   <div>
                     <label className="block text-xs font-bold text-slate-500 uppercase tracking-wider mb-1.5">Precio ($)</label>

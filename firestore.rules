@@ -8,78 +8,22 @@ service cloud.firestore {
     }
 
     function isSignedIn() {
-      // Assuming for a 2-person CRM they login via Google and emails are verified.
-      return request.auth != null && request.auth.token.email_verified == true;
+      // Assuming for a 2-person CRM they login via Google.
+      return request.auth != null;
     }
 
-    function incoming() { return request.resource.data; }
-    function existing() { return resource.data; }
-    
     function isValidId(id) {
       return id is string && id.size() <= 128 && id.matches('^[a-zA-Z0-9_\\-]+$');
     }
 
-    function isValidCustomer(data) {
-      return data.keys().hasAll(['name', 'lastContactDate', 'price', 'isWashing', 'isLoyal', 'createdAt', 'updatedAt'])
-        && data.name is string && data.name.size() <= 100
-        && (!('phone' in data) || (data.phone is string && data.phone.size() <= 50))
-        && data.lastContactDate is number
-        && data.price is number
-        && data.isWashing is bool
-        && data.isLoyal is bool
-        && data.createdAt is number
-        && data.updatedAt is number;
-    }
-
-    function isValidTask(data) {
-      return data.keys().hasAll(['title', 'isCompleted', 'createdAt', 'updatedAt'])
-        && data.title is string && data.title.size() <= 200
-        && data.isCompleted is bool
-        && data.createdAt is number
-        && data.updatedAt is number;
-    }
-
     match /customers/{customerId} {
-      allow read: if isSignedIn(); // Allow reading single doc
-      // Explicitly allow listing for signed in users. In a larger app we would restrict to resource.data.tenantId == userTenant. For a 2 person app this is fine.
-      allow list: if isSignedIn();
-      
-      allow create: if isSignedIn()
-        && isValidId(customerId)
-        && isValidCustomer(incoming())
-        && incoming().keys().size() <= 8
-        && incoming().createdAt == request.time.toMillis()
-        && incoming().updatedAt == request.time.toMillis();
-        
-      allow update: if isSignedIn()
-        && isValidId(customerId)
-        && isValidCustomer(incoming())
-        && incoming().createdAt == existing().createdAt
-        && incoming().updatedAt == request.time.toMillis()
-        && incoming().diff(existing()).affectedKeys().hasOnly(['name', 'phone', 'lastContactDate', 'price', 'isWashing', 'isLoyal', 'updatedAt']);
-        
-      allow delete: if isSignedIn() && isValidId(customerId);
+      allow read, list, delete: if isSignedIn();
+      allow create, update: if isSignedIn() && isValidId(customerId);
     }
 
     match /tasks/{taskId} {
-      allow read: if isSignedIn();
-      allow list: if isSignedIn();
-
-      allow create: if isSignedIn()
-        && isValidId(taskId)
-        && isValidTask(incoming())
-        && incoming().keys().size() == 4
-        && incoming().createdAt == request.time.toMillis()
-        && incoming().updatedAt == request.time.toMillis();
-
-      allow update: if isSignedIn()
-        && isValidId(taskId)
-        && isValidTask(incoming())
-        && incoming().createdAt == existing().createdAt
-        && incoming().updatedAt == request.time.toMillis()
-        && incoming().diff(existing()).affectedKeys().hasOnly(['title', 'isCompleted', 'updatedAt']);
-
-      allow delete: if isSignedIn() && isValidId(taskId);
+      allow read, list, delete: if isSignedIn();
+      allow create, update: if isSignedIn() && isValidId(taskId);
     }
   }
 }
